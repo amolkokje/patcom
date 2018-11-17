@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: patcom
+Version: 0.0.1
+Summary: Python modules for ATE pattern compression
+Home-page: https://github.com/amolkokje/patcom
+Author: Amol Kokje
+Author-email: amolkokje@gmail.com
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 2.7
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Description-Content-Type: text/markdown
