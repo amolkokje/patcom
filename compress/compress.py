@@ -1,8 +1,18 @@
 import re, string
 
+# TODO:
+# - sub-class: abstract base for compressor, inherited repeat, loop
+#       - input: lines, output: compressed lines
+# - proper space for instructions
+# - pip install -- add dependent modules or patcom!
+# - add function doc
+# - clean up code
+# - add proper exceptions 
+# 
+
 class Compress:
-    def __init__(self, input_pattern_file, repeat_char='IDXI', nop_char='NOP', loop_start_char='STI', loop_stop_char='JNI'):
-        self.input_pattern_file = input_pattern_file
+    def __init__(self, iplines, repeat_char='IDXI', nop_char='NOP', loop_start_char='STI', loop_stop_char='JNI'):
+        self.iplines = iplines
         self.repeat_char = repeat_char
         self.nop_char = nop_char
         self.loop_start_char = loop_start_char
@@ -11,16 +21,19 @@ class Compress:
         self.label_char = 'L'
         self.label_count = 0
         
-    def _get_pattern(self):
-        iplines = []
-        with open(self.input_pattern_file, 'r') as fh:
-            for line in fh.readlines():
-                # remove all spaces, and new lines
-                line = line.replace(' ','').replace('\r','').replace('\n','')
-                # if line is not a comment
-                if not re.match(r'^#', line):
-                    iplines.append(line)
-        return iplines
+    def _get_vectors(self):
+        """
+        removes all the comments, and unwanted spaces from the input lines
+        """
+                    
+        vectors = []        
+        for line in self.iplines:
+            # remove all spaces, and new lines
+            line = line.replace(' ','').replace('\r','').replace('\n','')
+            # if line is not a comment
+            if not re.match(r'^#', line):
+                vectors.append(line)
+        return vectors
         
    
     def _convert_to_repeat_vector(self, ipvector, count):
@@ -62,6 +75,8 @@ class Compress:
         
         
     def _convert_to_loop_vector(self, base, count):
+        # currently only works for the depth of 2
+        
         converted = []
         self.label_count += 1
         label = self.label_char + str(self.label_count)
@@ -82,7 +97,7 @@ class Compress:
             converted.append( re.sub('({}\d*)'.format(self.repeat_char), loop_instr, vector_nop_first) )
         
         # label
-        converted.append( label )  
+        converted.append( label + ':' )  
         
         # first vector - if it contains repeats, add with RC-1
         if self._contains_repeats(base[0]):
@@ -121,48 +136,6 @@ class Compress:
         converted.append( base[1] )        
          
         return converted 
-        ######
-        
-        # break first, add start char
-        # FIX - add consideration for loop 
-        if self.repeat_char in base[0]:
-            raw_input('base[0]={} has repeat char'.format(base[0]))            
-            vector_nop_first = re.sub('IDXI \d', self.nop_char, base[0])
-            print 'vector_nop_first={}'.format(vector_nop_first)
-            repeat_count = int(re.match(r'IDXI(.+){V', base[0]).group(1).strip())
-            print 'repeat_count={}'.format(repeat_count)
-            for _ in range(repeat_count-1):
-                converted.append(vector_nop_first)
-            converted.append( re.sub('NOP', '{} {}'.format(self.loop_start_char, count-2), vector_nop_first) )            
-        else:
-            converted.append( base[0].replace('NOP', '{} {}'.format(self.loop_start_char, count-2) ) )       
-            #converted += base[1:]
-        raw_input('converted={}'.format(converted))
-        
-        
-        # label
-        converted.append(label + ':')        
-        #converted.append(vector_nop_last)
-        raw_input('converted={}'.format(converted))
-        
-        # break last, add stop char
-        # FIX - add consideration for loop 
-        if self.repeat_char in base[1]:
-            raw_input('base[1]={} has repeat char'.format(base[1])) 
-            vector_nop_last = re.sub('IDXI \d', self.nop_char, base[1])
-            print 'vector_nop_last={}'.format(vector_nop_last)
-            repeat_count = int(re.match(r'IDXI(.+){V', base[1]).group(1).strip())
-            print 'repeat_count={}'.format(repeat_count)
-            for _ in range(repeat_count-1):
-                converted.append(vector_nop_last)        
-            converted.append( re.sub('NOP', '{} {}'.format(self.loop_stop_char, label), vector_nop_last) )
-        else:   
-            #converted += base[:-1]
-            converted.append(base[-1].replace('NOP','{} {}'.format(self.loop_stop_char, label)))
-        raw_input('converted={}'.format(converted))
-        
-        
-        return converted
         
 
     def _compress_loops(self, iplines):
@@ -175,8 +148,7 @@ class Compress:
         i = 0
         
         depth = 2  # no of vectors to compare, default
-        
-        
+                
         while i+1 < n:
             base = iplines[i:i+depth]
             ##print 'base={}'.format(base)
@@ -204,17 +176,20 @@ class Compress:
         return oplines
         
             
-    def compress(self):
-        lines = self._compress_repeats(self._get_pattern())  
-        #print 'REPEAT COMPRESSED:'
-        #for line in lines:
-        #    print '{}'.format(line)
-        
-        lines = self._compress_loops(lines)
-        print 'LOOP COMPRESSED:'
-        for line in lines:
-            print '{}'.format(line)
-            
+    def compress(self, algo='all'):
+        #print 'algo={}'.format(algo)
+        if algo == 'all' or algo == 'repeats' or algo == 'loops':
+            vectors = self._get_vectors()
+            #print vectors
+            if algo == 'all':
+                return self._compress_loops( self._compress_repeats(vectors) )
+            elif algo == 'repeats':
+                return self._compress_repeats(vectors)
+            elif algo == 'loops':
+                return self._compress_loops(vectors)
+        else:
+            # TODO - Create InputErrorException
+            raise RunTimeError('Invalid algo selection!')
       
         
         
