@@ -57,7 +57,7 @@ class Compress:
         return oplines  
 
         
-    def _contains_repeats(vector):
+    def _contains_repeats(self, vector):
         return True if self.repeat_char in vector else False
         
         
@@ -69,18 +69,59 @@ class Compress:
         contains_repeats_first = self._contains_repeats(base[0])
         contains_repeats_last = self._contains_repeats(base[1])
         
-        # no repeats in both
-        if not contains_repeats_first and not contains_repeats_last:
-            pass
-        # only the first contains repeats
-        elif contains_repeats_first and not contains_repeats_last:
-            pass
-        # only the last contains repeats
-        elif not contains_repeats_first and contains_repeats_last:
-            pass
-        # both contain repeats
-        else:    
-           pass 
+        # if there is a repeat_char, then replace it with NOP
+        vector_nop_first = re.sub( '{} \d'.format(self.repeat_char), self.nop_char, base[0] )
+        vector_nop_last  = re.sub( '{} \d'.format(self.repeat_char), self.nop_char, base[1] )
+        
+        # first vector - always same
+        # replace NOP or Repeat by STI
+        loop_instr = '{} {}'.format(self.loop_start_char, count-1)
+        if self.nop_char in base[0]:
+            converted.append( re.sub(self.nop_char, loop_instr, vector_nop_first) )
+        elif self.repeat_char in base[0]:    
+            converted.append( re.sub('({}\d*)'.format(self.repeat_char), loop_instr, vector_nop_first) )
+        
+        # label
+        converted.append( label )  
+        
+        # first vector - if it contains repeats, add with RC-1
+        if self._contains_repeats(base[0]):
+            # replace the RC by (RC-1), as one iteration is already covered
+            # RC=1 is same as NOP
+            repeat_count = int(re.match(r'IDXI(.+){V', base[0]).group(1).strip())
+            if repeat_count == 2:
+                converted.append( vector_nop_first )
+            else:
+                # replace RC by (RC-1)
+                converted.append( re.sub( str(repeat_count), str(repeat_count-1), base[0] ) )
+         
+        # last vector - always same 
+        converted.append( base[1] )
+         
+        ## - clipped off part/last iteration 
+        
+        # first vector - always same    
+        # replace NOP or Repeat by JNI Label
+        loop_stop_instr = '{} {}'.format(self.loop_stop_char, label)
+        if self.nop_char in base[1]:
+            converted.append( re.sub(self.nop_char, loop_stop_instr, vector_nop_last) )
+        elif self.repeat_char in base[1]:    
+            converted.append( re.sub('({}\d*)'.format(self.repeat_char), loop_stop_instr, vector_nop_last) )
+         
+        # first vector - if contains repeats
+        if self._contains_repeats(base[0]):
+            repeat_count = int(re.match(r'IDXI(.+){V', base[0]).group(1).strip())
+            if repeat_count == 2:
+                converted.append( vector_nop_first )
+            else:
+                # replace RC by (RC-1)
+                converted.append( re.sub( str(repeat_count), str(repeat_count-1), base[0] ) )
+                
+        # last vector - always same 
+        converted.append( base[1] )        
+         
+        return converted 
+        ######
         
         # break first, add start char
         # FIX - add consideration for loop 
@@ -138,25 +179,25 @@ class Compress:
         
         while i+1 < n:
             base = iplines[i:i+depth]
-            print 'base={}'.format(base)
+            ##print 'base={}'.format(base)
             c = 1
             if i+depth < n:
                 for j in range(i+depth, n, depth):
                     if iplines[j:j+depth] == base:                        
                         c += 1
-                        print 'found match: c={}'.format(c)
+                        ##print 'found match: c={}'.format(c)
                     else:
                         break                
             
             if c > 2:
-                print 'c>2, compress loop'
+                ##print 'c>2, compress loop'
                 oplines += self._convert_to_loop_vector(base, c)
                 i += depth*c
             else:
                 oplines.append(base[0])
                 i += 1
         
-            print 'i={}, oplines={}'.format(i, oplines)
+            ##print 'i={}, oplines={}'.format(i, oplines)
         
         # add the last line
         oplines.append(iplines[i])
@@ -165,9 +206,9 @@ class Compress:
             
     def compress(self):
         lines = self._compress_repeats(self._get_pattern())  
-        print 'REPEAT COMPRESSED:'
-        for line in lines:
-            print '{}'.format(line)
+        #print 'REPEAT COMPRESSED:'
+        #for line in lines:
+        #    print '{}'.format(line)
         
         lines = self._compress_loops(lines)
         print 'LOOP COMPRESSED:'
